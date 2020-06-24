@@ -5,8 +5,13 @@ const {
   check,
   validationResult
 } = require('express-validator');
-const mailjet = require('node-mailjet').connect('api key', 'api secret');
-
+const mailgun = require('mailgun.js')
+const mg = mailgun.client({
+  username: 'api',
+  key: process.env.MAILGUN_API_KEY,
+  public_key: process.env.MAILGUN_PUBLIC_KEY,
+  url: 'https://api.eu.mailgun.net'
+});
 
 /* POST contact us form. */
 router.post('/contact-us', [
@@ -24,17 +29,31 @@ router.post('/contact-us', [
 
   const secret_key = process.env.RECAPTCHA_SECRET_KEY;
   const token = req.body['g-recaptcha-response'];
+  const name = req.body['name'];
+  const email = req.body['email'];
+  const message = req.body['message'];
   const url = `https://www.google.com/recaptcha/api/siteverify?secret=${secret_key}&response=${token}`;
+  console.log({
+    name, email, message
+  })
 
   // console.log(req)
   fetch(url, {
     method: 'post'
   })
     .then(response => response.json())
-    .then(google_response => res.json({
-      google_response
-    }))
-    .catch(error => res.json({ error }));
+    .then(google_response => {
+      mg.messages.create('mg.openbloc.com', {
+          from: `${name} <${email}>`,
+          to: ["contact@openbloc.com"],
+          subject: `New message from ${name}`,
+          text: message
+        }).then(msg => res.json({status: 'ok'}))
+          .catch(err => {
+            res.status(500).json({err})
+          });
+    })
+    .catch(error => res.status(500).json({ error }));
 
 });
 
